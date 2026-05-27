@@ -10,7 +10,6 @@ COPY tsconfig*.json ./
 COPY index.html ./
 COPY components.json ./
 COPY src ./src
-COPY public ./public
 RUN npm ci
 
 EXPOSE 5173
