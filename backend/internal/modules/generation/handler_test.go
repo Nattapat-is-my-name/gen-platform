@@ -49,17 +49,17 @@ func TestGenerateImageValidation(t *testing.T) {
 	}{
 		{
 			name:       "missing mode",
-			body:       map[string]interface{}{"prompt": "test", "model": "image-01"},
+			body:       map[string]interface{}{"sessionId": "test", "prompt": "test", "model": "image-01"},
 			wantStatus: http.StatusBadRequest,
 		},
 		{
 			name:       "missing prompt",
-			body:       map[string]interface{}{"mode": "text_to_image", "model": "image-01"},
+			body:       map[string]interface{}{"sessionId": "test", "mode": "text_to_image", "model": "image-01"},
 			wantStatus: http.StatusBadRequest,
 		},
 		{
 			name:       "missing model",
-			body:       map[string]interface{}{"mode": "text_to_image", "prompt": "test"},
+			body:       map[string]interface{}{"sessionId": "test", "mode": "text_to_image", "prompt": "test"},
 			wantStatus: http.StatusBadRequest,
 		},
 	}
@@ -91,17 +91,17 @@ func TestGenerateVideoValidation(t *testing.T) {
 	}{
 		{
 			name:       "missing mode",
-			body:       map[string]interface{}{"prompt": "test", "model": "MiniMax-Hailuo-02"},
+			body:       map[string]interface{}{"sessionId": "test", "prompt": "test", "model": "MiniMax-Hailuo-02"},
 			wantStatus: http.StatusBadRequest,
 		},
 		{
 			name:       "missing prompt",
-			body:       map[string]interface{}{"mode": "text_to_video", "model": "MiniMax-Hailuo-02"},
+			body:       map[string]interface{}{"sessionId": "test", "mode": "text_to_video", "model": "MiniMax-Hailuo-02"},
 			wantStatus: http.StatusBadRequest,
 		},
 		{
 			name:       "missing model",
-			body:       map[string]interface{}{"mode": "text_to_video", "prompt": "test"},
+			body:       map[string]interface{}{"sessionId": "test", "mode": "text_to_video", "prompt": "test"},
 			wantStatus: http.StatusBadRequest,
 		},
 	}
