@@ -91,25 +91,29 @@ func (s *Service) CreateImageGeneration(ctx context.Context, req *ImageGenerateR
 			generation.Status = StatusFailed
 			errMsg := fmt.Sprintf("failed to get reference image URL: %v", err)
 			generation.ErrorMessage = &errMsg
-			s.repo.Update(generation)
+			_ = s.repo.Update(generation)
 			return &ImageGenerateResponse{
 				GenerationID: generation.ID.String(),
 				Status:       string(StatusFailed),
 			}, nil
 		}
 
-		result, err = s.minimax.GenerateImageToImage(ctx, ImageToImageRequest{
+		var i2iErr error
+		result, i2iErr = s.minimax.GenerateImageToImage(ctx, ImageToImageRequest{
 			Prompt:            req.Prompt,
 			Model:             req.Model,
 			ReferenceImageURL: refURL,
 		})
+		if i2iErr != nil {
+			err = i2iErr
+		}
 	}
 
 	if err != nil {
 		generation.Status = StatusFailed
 		errMsg := err.Error()
 		generation.ErrorMessage = &errMsg
-		s.repo.Update(generation)
+		_ = s.repo.Update(generation)
 		return &ImageGenerateResponse{
 			GenerationID: generation.ID.String(),
 			Status:       string(StatusFailed),
@@ -121,7 +125,7 @@ func (s *Service) CreateImageGeneration(ctx context.Context, req *ImageGenerateR
 		generation.Status = StatusFailed
 		errMsg := result.BaseResp.StatusMsg
 		generation.ErrorMessage = &errMsg
-		s.repo.Update(generation)
+		_ = s.repo.Update(generation)
 		return &ImageGenerateResponse{
 			GenerationID: generation.ID.String(),
 			Status:       string(StatusFailed),
@@ -273,7 +277,7 @@ func (s *Service) GetGeneration(ctx context.Context, id uuid.UUID) (*GenerationR
 				videoData, contentType, err := s.minimax.DownloadVideoFile(ctx, status.FileID)
 				if err == nil {
 					key := fmt.Sprintf("videos/%s/%s.mp4", generation.ID.String(), status.FileID)
-					s.storage.Put(ctx, key, videoData, contentType)
+					_ = s.storage.Put(ctx, key, videoData, contentType)
 					url, _ := s.storage.GetPresignedURL(ctx, key)
 
 					outputs := []Output{{URL: url}}
@@ -290,13 +294,13 @@ func (s *Service) GetGeneration(ctx context.Context, id uuid.UUID) (*GenerationR
 			default:
 				generation.Status = StatusProcessing
 			}
-			s.repo.Update(generation)
+			_ = s.repo.Update(generation)
 		}
 	}
 
 	var outputs []Output
 	if generation.OutputObjects != nil {
-		json.Unmarshal(generation.OutputObjects, &outputs)
+		_ = json.Unmarshal(generation.OutputObjects, &outputs)
 	}
 
 	return ToGenerationResponse(generation, outputs), nil
@@ -312,7 +316,7 @@ func (s *Service) ListGenerations(sessionID string, filter string) ([]Generation
 	for i, g := range generations {
 		var outputs []Output
 		if g.OutputObjects != nil {
-			json.Unmarshal(g.OutputObjects, &outputs)
+			_ = json.Unmarshal(g.OutputObjects, &outputs)
 		}
 		resp := ToGenerationResponse(&g, outputs)
 		responses[i] = *resp
@@ -344,7 +348,7 @@ func (s *Service) PollVideoTask(ctx context.Context, id uuid.UUID) (*GenerationR
 		videoData, contentType, err := s.minimax.DownloadVideoFile(ctx, status.FileID)
 		if err == nil {
 			key := fmt.Sprintf("videos/%s/%s.mp4", generation.ID.String(), status.FileID)
-			s.storage.Put(ctx, key, videoData, contentType)
+			_ = s.storage.Put(ctx, key, videoData, contentType)
 			url, _ := s.storage.GetPresignedURL(ctx, key)
 
 			outputs := []Output{{URL: url}}
@@ -362,11 +366,11 @@ func (s *Service) PollVideoTask(ctx context.Context, id uuid.UUID) (*GenerationR
 		generation.Status = StatusProcessing
 	}
 
-	s.repo.Update(generation)
+	_ = s.repo.Update(generation)
 
 	var outputs []Output
 	if generation.OutputObjects != nil {
-		json.Unmarshal(generation.OutputObjects, &outputs)
+		_ = json.Unmarshal(generation.OutputObjects, &outputs)
 	}
 
 	return ToGenerationResponse(generation, outputs), nil
@@ -380,18 +384,18 @@ func (s *Service) DeleteGeneration(ctx context.Context, id uuid.UUID) error {
 
 	var inputKeys []string
 	if generation.InputObjects != nil {
-		json.Unmarshal(generation.InputObjects, &inputKeys)
+		_ = json.Unmarshal(generation.InputObjects, &inputKeys)
 	}
 	for _, key := range inputKeys {
-		s.storage.Delete(ctx, key)
+		_ = s.storage.Delete(ctx, key)
 	}
 
 	var outputKeys []Output
 	if generation.OutputObjects != nil {
-		json.Unmarshal(generation.OutputObjects, &outputKeys)
+		_ = json.Unmarshal(generation.OutputObjects, &outputKeys)
 	}
 	for _, out := range outputKeys {
-		s.storage.Delete(ctx, out.URL)
+		_ = s.storage.Delete(ctx, out.URL)
 	}
 
 	return s.repo.Delete(id)
