@@ -2,13 +2,14 @@ services:
   frontend:
     build: ./frontend
     ports:
-      - "5173:80"
+      - "5173:5173"
     volumes:
       - ./frontend:/app
       - /app/node_modules
     command: npm run dev
     depends_on:
-      - backend
+      backend:
+        condition: service_started
 
   backend:
     build: ./backend
@@ -17,8 +18,10 @@ services:
     env_file:
       - .env
     depends_on:
-      - postgres
-      - minio
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_started
 
   postgres:
     image: postgres:16
@@ -30,6 +33,11 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app -d genapp"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   minio:
     image: minio/minio
@@ -42,6 +50,11 @@ services:
       - "9001:9001"
     volumes:
       - minio_data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
 volumes:
   postgres_data:
