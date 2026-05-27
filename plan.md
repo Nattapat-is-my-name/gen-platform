@@ -2,7 +2,7 @@ project plan
 
 ```txt
 React Vite + shadcn/ui frontend
-Go Gin backend
+Go Gin backend + GORM (NOT sqlx)
 Postgres database
 MinIO object storage
 Swagger/OpenAPI contract
