@@ -2,6 +2,17 @@
 
 Specialized agent for MiniMax Gen Web project.
 
+## Agent Guidelines
+
+**When to use web search & skills:**
+- If you don't know something, search the web or use available skills
+- Use `use context7` in prompts when needing up-to-date library documentation
+- Don't guess APIs or library versions - verify with current docs
+
+**Tech stack updates:**
+- Reference https://context7.com for up-to-date library documentation
+- When implementing features, verify current best practices via context7
+
 ## Project Stack
 
 - **Frontend**: React Vite + TypeScript + shadcn/ui + Tailwind + TanStack Query
@@ -11,10 +22,54 @@ Specialized agent for MiniMax Gen Web project.
 - **Tests**: Ginkgo/Omega (backend), Vitest (frontend)
 - **Infrastructure**: Docker Compose
 
+## MiniMax API Reference
+
+**Base URL:** `https://api.minimax.io`
+
+**API Type:** OpenAI-compatible API
+
+**Authentication:**
+```bash
+export OPENAI_BASE_URL=https://api.minimax.io/v1
+export OPENAI_API_KEY=${MINIMAX_API_KEY}
+```
+
+### MiniMax Endpoints
+
+| Feature | Endpoint | Method |
+|---------|----------|--------|
+| Text to Image | `/v1/text_to_image` | POST |
+| Image to Image | `/v1/image_to_image` | POST |
+| Text to Video | `/v1/video_generation` | POST |
+| Image to Video | `/v1/image_to_video` | POST |
+| First+Last Frame Video | `/v1/first_last_frame_video` | POST |
+| Subject Reference Video | `/v1/subject_reference_video` | POST |
+| Query Video Task | `/v1/video_generation/{task_id}` | GET |
+| Download Video | `/v1/video_generation/file/{file_id}` | GET |
+
+### MiniMax Video Models
+- `MiniMax-Hailuo-02` (latest, best quality)
+- `MiniMax-Hailuo-2.3`
+- `MiniMax-Hailuo-01`
+
+### MiniMax Image Models
+- `image-01`
+
+### Video Options
+- **Duration:** 6 or 10 seconds
+- **Resolution:** 768P, 1080P
+
+### Camera Movement Commands
+```
+[Push in], [Pull out], [Pan left], [Pan right]
+[Tilt up], [Tilt down], [Zoom in], [Zoom out]
+[Tracking shot], [Static shot], [Shake]
+```
+
 ## Project Structure
 
 ```
-minimax-gen-web/
+gen-platform/
 ├── frontend/           # React Vite app
 │   ├── src/
 │   │   ├── app/       # App router
@@ -22,19 +77,24 @@ minimax-gen-web/
 │   │   ├── components/# UI components
 │   │   ├── api/       # Generated OpenAPI client
 │   │   └── lib/       # Utilities
-│   └── package.json
+│   ├── package.json
+│   └── vite.config.ts
 ├── backend/           # Go Gin API
 │   ├── cmd/api/       # Main entrypoint
 │   ├── internal/
 │   │   ├── api/       # OpenAPI generated types
 │   │   ├── config/    # Configuration
+│   │   ├── database/  # GORM postgres connection
 │   │   ├── server/    # Router, middleware
 │   │   └── modules/   # Business logic
+│   │       ├── generation/  # model, repository, service, handler, dto
+│   │       ├── minimax/     # MiniMax API client
+│   │       └── storage/      # MinIO storage
 │   ├── api/           # OpenAPI spec
-│   ├── migrations/    # SQL migrations
 │   └── go.mod
 ├── docker-compose.yml
-└── .env.example
+├── .env.example
+└── Makefile
 ```
 
 ## Common Tasks
@@ -67,14 +127,11 @@ go test -v -race ./internal/modules/generation/...
 # Build
 go build -o bin/api ./cmd/api
 
-# Run migrations
-migrate -path migrations -database "$DATABASE_URL" up
-
-# Generate OpenAPI types
-oapi-codegen -generate types,gin -package api ./api/openapi.yaml > ./internal/api/openapi.gen.go
-
 # Run linter
 golangci-lint run
+
+# Run directly
+go run ./cmd/api
 ```
 
 ### Frontend commands
@@ -127,20 +184,6 @@ docker compose build --no-cache
 
 ```bash
 psql postgres://app:app@localhost:5432/genapp
-```
-
-### Run migrations
-
-```bash
-cd backend
-migrate -path migrations -database "postgres://app:app@localhost:5432/genapp?sslmode=disable" up
-```
-
-### Create migration
-
-```bash
-cd backend
-migrate create -ext sql -dir migrations -seq add_user_table
 ```
 
 ## MinIO
