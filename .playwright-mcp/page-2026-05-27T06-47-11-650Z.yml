@@ -1,0 +1,53 @@
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - banner [ref=e4]:
+      - generic [ref=e5]:
+        - heading "MiniMax Gen" [level=1] [ref=e6]
+        - paragraph [ref=e7]: AI-powered image and video generation platform
+    - main [ref=e8]:
+      - heading "Choose a generation type" [level=2] [ref=e9]
+      - generic [ref=e10]:
+        - link "🖼️ Text to Image Generate images from text prompts" [ref=e11] [cursor=pointer]:
+          - /url: /images
+          - generic [ref=e14]:
+            - generic [ref=e15]: 🖼️
+            - generic [ref=e16]: Text to Image
+            - generic [ref=e17]: Generate images from text prompts
+        - link "✨ Image to Image Transform images with AI" [ref=e18] [cursor=pointer]:
+          - /url: /images
+          - generic [ref=e21]:
+            - generic [ref=e22]: ✨
+            - generic [ref=e23]: Image to Image
+            - generic [ref=e24]: Transform images with AI
+        - link "🎬 Text to Video Generate videos from text" [ref=e25] [cursor=pointer]:
+          - /url: /videos
+          - generic [ref=e28]:
+            - generic [ref=e29]: 🎬
+            - generic [ref=e30]: Text to Video
+            - generic [ref=e31]: Generate videos from text
+        - link "🎥 Image to Video Animate images into videos" [ref=e32] [cursor=pointer]:
+          - /url: /videos
+          - generic [ref=e35]:
+            - generic [ref=e36]: 🎥
+            - generic [ref=e37]: Image to Video
+            - generic [ref=e38]: Animate images into videos
+        - link "🖼️ First + Last Frame Video from frame transitions" [ref=e39] [cursor=pointer]:
+          - /url: /videos
+          - generic [ref=e42]:
+            - generic [ref=e43]: 🖼️
+            - generic [ref=e44]: First + Last Frame
+            - generic [ref=e45]: Video from frame transitions
+        - link "👤 Subject Reference Video with subject reference" [ref=e46] [cursor=pointer]:
+          - /url: /videos
+          - generic [ref=e49]:
+            - generic [ref=e50]: 👤
+            - generic [ref=e51]: Subject Reference
+            - generic [ref=e52]: Video with subject reference
+        - link "📚 History View all your generations" [ref=e53] [cursor=pointer]:
+          - /url: /history
+          - generic [ref=e56]:
+            - generic [ref=e57]: 📚
+            - generic [ref=e58]: History
+            - generic [ref=e59]: View all your generations
+    - contentinfo [ref=e60]: Powered by MiniMax AI
+  - region "Notifications alt+T"

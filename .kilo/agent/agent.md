@@ -262,3 +262,33 @@ CORS_ALLOWED_ORIGINS=http://localhost:5173
 - `processing`
 - `success`
 - `failed`
+
+## Project Rules
+
+**Always do after running docker-compose:**
+1. Run `docker compose logs --tail=20` to verify all services started correctly
+2. Check that backend shows "Starting server on port 8080"
+3. Check that postgres shows "database system is ready to accept connections"
+4. Check that frontend returned 200 for requests
+
+**Docker troubleshooting:**
+- If frontend shows "Cannot find module" errors: rebuild with `docker compose build --no-cache frontend`
+- If ports are already allocated: run `docker stop $(docker ps -qa --filter name=gen-video)` to clear stuck containers
+- If services fail to start: check dependent services are healthy first (postgres, minio)
+
+**Frontend development:**
+- Use production build (`npm run build`) in Docker, not dev server
+- Config files (vite.config.ts, tailwind.config.js, etc.) must be in the Docker image
+- Only mount `src/` and `public/` directories as volumes for hot reload
+
+**Backend development:**
+- Run `go run ./cmd/api` locally for hot-reload development
+- Use `docker compose up --build` for production-like testing
+- Always set env vars from .env file when running locally
+
+**Port reference:**
+- Frontend: 5173
+- Backend: 8080
+- Postgres: 5432
+- MinIO API: 9000
+- MinIO Console: 9001
