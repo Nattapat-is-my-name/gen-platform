@@ -86,10 +86,10 @@ func (s *Service) CreateImageGeneration(ctx context.Context, req *ImageGenerateR
 		})
 	case ImageModeImageToImage:
 		// Get reference image URL from MinIO
-		refURL, err := s.storage.GetPresignedURL(ctx, req.ReferenceImageObjectKey)
-		if err != nil {
+		refURL, refErr := s.storage.GetPresignedURL(ctx, req.ReferenceImageObjectKey)
+		if refErr != nil {
 			generation.Status = StatusFailed
-			errMsg := fmt.Sprintf("failed to get reference image URL: %v", err)
+			errMsg := fmt.Sprintf("failed to get reference image URL: %v", refErr)
 			generation.ErrorMessage = &errMsg
 			_ = s.repo.Update(generation)
 			return &ImageGenerateResponse{
@@ -98,15 +98,11 @@ func (s *Service) CreateImageGeneration(ctx context.Context, req *ImageGenerateR
 			}, nil
 		}
 
-		var i2iErr error
-		result, i2iErr = s.minimax.GenerateImageToImage(ctx, ImageToImageRequest{
+		result, err = s.minimax.GenerateImageToImage(ctx, ImageToImageRequest{
 			Prompt:            req.Prompt,
 			Model:             req.Model,
 			ReferenceImageURL: refURL,
 		})
-		if i2iErr != nil {
-			err = i2iErr
-		}
 	}
 
 	if err != nil {
@@ -166,7 +162,7 @@ func (s *Service) CreateImageGeneration(ctx context.Context, req *ImageGenerateR
 	generation.OutputObjects = outputObjs
 	now := time.Now()
 	generation.CompletedAt = &now
-	s.repo.Update(generation)
+	_ = s.repo.Update(generation)
 
 	return &ImageGenerateResponse{
 		GenerationID: generation.ID.String(),
@@ -242,7 +238,7 @@ func (s *Service) CreateVideoGeneration(ctx context.Context, req *VideoGenerateR
 		generation.Status = StatusFailed
 		errMsg := err.Error()
 		generation.ErrorMessage = &errMsg
-		s.repo.Update(generation)
+		_ = s.repo.Update(generation)
 		return &VideoGenerateResponse{
 			GenerationID: generation.ID.String(),
 			Status:       string(StatusFailed),
@@ -251,7 +247,7 @@ func (s *Service) CreateVideoGeneration(ctx context.Context, req *VideoGenerateR
 
 	generation.Status = StatusProcessing
 	generation.TaskID = &result.TaskID
-	s.repo.Update(generation)
+	_ = s.repo.Update(generation)
 
 	return &VideoGenerateResponse{
 		GenerationID: generation.ID.String(),
