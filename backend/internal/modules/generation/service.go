@@ -4,6 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
+	"mime/multipart"
+	"net/http"
 	"time"
 
 	"github.com/google/uuid"
@@ -24,6 +27,7 @@ type Storage interface {
 	Put(ctx context.Context, key string, body []byte, contentType string) error
 	GetPresignedURL(ctx context.Context, key string) (string, error)
 	Delete(ctx context.Context, key string) error
+	Get(ctx context.Context, key string) ([]byte, string, error)
 }
 
 type Service struct {
@@ -41,16 +45,25 @@ func NewService(repo *Repository, minimax MiniMaxClient, storage Storage) *Servi
 }
 
 func (s *Service) CreateImageGeneration(ctx context.Context, req *ImageGenerateRequest) (*ImageGenerateResponse, error) {
-	generation := &Generation{
-		Type:   GenerationTypeImage,
-		Mode:   GenerationMode(req.Mode),
-		Prompt: req.Prompt,
-		Model:  req.Model,
-		Status: StatusPending,
+	// Default to "anonymous" if sessionId is empty
+	sessionID := req.SessionID
+	if sessionID == "" {
+		sessionID = "anonymous"
 	}
 
-	inputObjs, _ := json.Marshal(req.ReferenceImageObjectKeys)
-	generation.InputObjects = inputObjs
+	generation := &Generation{
+		SessionID: sessionID,
+		Type:      GenerationTypeImage,
+		Mode:      GenerationMode(req.Mode),
+		Prompt:    req.Prompt,
+		Model:     req.Model,
+		Status:    StatusPending,
+	}
+
+	if req.ReferenceImageObjectKey != "" {
+		inputObjs, _ := json.Marshal([]string{req.ReferenceImageObjectKey})
+		generation.InputObjects = inputObjs
+	}
 
 	settings, _ := json.Marshal(map[string]interface{}{
 		"aspectRatio": req.AspectRatio,
@@ -67,13 +80,28 @@ func (s *Service) CreateImageGeneration(ctx context.Context, req *ImageGenerateR
 	switch req.Mode {
 	case ImageModeTextToImage:
 		result, err = s.minimax.GenerateTextToImage(ctx, TextToImageRequest{
-			Prompt: req.Prompt,
-			Model:  req.Model,
+			Prompt:      req.Prompt,
+			Model:       req.Model,
+			AspectRatio: req.AspectRatio,
 		})
 	case ImageModeImageToImage:
+		// Get reference image URL from MinIO
+		refURL, err := s.storage.GetPresignedURL(ctx, req.ReferenceImageObjectKey)
+		if err != nil {
+			generation.Status = StatusFailed
+			errMsg := fmt.Sprintf("failed to get reference image URL: %v", err)
+			generation.ErrorMessage = &errMsg
+			s.repo.Update(generation)
+			return &ImageGenerateResponse{
+				GenerationID: generation.ID.String(),
+				Status:       string(StatusFailed),
+			}, nil
+		}
+
 		result, err = s.minimax.GenerateImageToImage(ctx, ImageToImageRequest{
-			Prompt: req.Prompt,
-			Model:  req.Model,
+			Prompt:            req.Prompt,
+			Model:             req.Model,
+			ReferenceImageURL: refURL,
 		})
 	}
 
@@ -88,17 +116,53 @@ func (s *Service) CreateImageGeneration(ctx context.Context, req *ImageGenerateR
 		}, nil
 	}
 
+	// Check MiniMax API error response
+	if result.BaseResp.StatusCode != 0 {
+		generation.Status = StatusFailed
+		errMsg := result.BaseResp.StatusMsg
+		generation.ErrorMessage = &errMsg
+		s.repo.Update(generation)
+		return &ImageGenerateResponse{
+			GenerationID: generation.ID.String(),
+			Status:       string(StatusFailed),
+		}, nil
+	}
+
+	// Download and save images to MinIO
+	var outputs []Output
+	for i, imgURL := range result.Data.ImageURLs {
+		// Download image from MiniMax
+		imgData, err := s.downloadImage(ctx, imgURL)
+		if err != nil {
+			// If download fails, still include original URL
+			outputs = append(outputs, Output{URL: imgURL})
+			continue
+		}
+
+		// Save to MinIO with unique key
+		objectKey := fmt.Sprintf("generated/images/%s/%d.jpg", generation.ID.String(), i)
+		if err := s.storage.Put(ctx, objectKey, imgData, "image/jpeg"); err != nil {
+			// If save fails, use original URL
+			outputs = append(outputs, Output{URL: imgURL})
+			continue
+		}
+
+		// Get accessible URL from MinIO
+		minioURL, err := s.storage.GetPresignedURL(ctx, objectKey)
+		if err != nil {
+			outputs = append(outputs, Output{URL: imgURL})
+			continue
+		}
+
+		outputs = append(outputs, Output{URL: minioURL})
+	}
+
 	generation.Status = StatusSuccess
-	outputObjs, _ := json.Marshal(result.Outputs)
+	outputObjs, _ := json.Marshal(outputs)
 	generation.OutputObjects = outputObjs
 	now := time.Now()
 	generation.CompletedAt = &now
 	s.repo.Update(generation)
-
-	outputs := make([]Output, len(result.Outputs))
-	for i, out := range result.Outputs {
-		outputs[i] = Output{URL: out.URL}
-	}
 
 	return &ImageGenerateResponse{
 		GenerationID: generation.ID.String(),
@@ -108,12 +172,19 @@ func (s *Service) CreateImageGeneration(ctx context.Context, req *ImageGenerateR
 }
 
 func (s *Service) CreateVideoGeneration(ctx context.Context, req *VideoGenerateRequest) (*VideoGenerateResponse, error) {
+	// Default to "anonymous" if sessionId is empty
+	sessionID := req.SessionID
+	if sessionID == "" {
+		sessionID = "anonymous"
+	}
+
 	generation := &Generation{
-		Type:   GenerationTypeVideo,
-		Mode:   GenerationMode(req.Mode),
-		Prompt: req.Prompt,
-		Model:  req.Model,
-		Status: StatusPending,
+		SessionID: sessionID,
+		Type:      GenerationTypeVideo,
+		Mode:      GenerationMode(req.Mode),
+		Prompt:    req.Prompt,
+		Model:     req.Model,
+		Status:    StatusPending,
 	}
 
 	inputObjs, _ := json.Marshal(req.InputObjectKeys)
@@ -191,6 +262,38 @@ func (s *Service) GetGeneration(ctx context.Context, id uuid.UUID) (*GenerationR
 		return nil, err
 	}
 
+	if generation.Type == GenerationTypeVideo && generation.Status == StatusProcessing && generation.TaskID != nil {
+		status, err := s.minimax.QueryVideoTask(ctx, *generation.TaskID)
+		if err == nil {
+			switch status.Status {
+			case "Success":
+				generation.Status = StatusSuccess
+				generation.FileID = &status.FileID
+
+				videoData, contentType, err := s.minimax.DownloadVideoFile(ctx, status.FileID)
+				if err == nil {
+					key := fmt.Sprintf("videos/%s/%s.mp4", generation.ID.String(), status.FileID)
+					s.storage.Put(ctx, key, videoData, contentType)
+					url, _ := s.storage.GetPresignedURL(ctx, key)
+
+					outputs := []Output{{URL: url}}
+					outputObjs, _ := json.Marshal(outputs)
+					generation.OutputObjects = outputObjs
+				}
+
+				now := time.Now()
+				generation.CompletedAt = &now
+			case "Fail":
+				generation.Status = StatusFailed
+				errMsg := status.ErrorMessage
+				generation.ErrorMessage = &errMsg
+			default:
+				generation.Status = StatusProcessing
+			}
+			s.repo.Update(generation)
+		}
+	}
+
 	var outputs []Output
 	if generation.OutputObjects != nil {
 		json.Unmarshal(generation.OutputObjects, &outputs)
@@ -199,8 +302,8 @@ func (s *Service) GetGeneration(ctx context.Context, id uuid.UUID) (*GenerationR
 	return ToGenerationResponse(generation, outputs), nil
 }
 
-func (s *Service) ListGenerations(filter string) ([]GenerationResponse, error) {
-	generations, err := s.repo.FindAll(filter)
+func (s *Service) ListGenerations(sessionID string, filter string) ([]GenerationResponse, error) {
+	generations, err := s.repo.FindAll(sessionID, filter)
 	if err != nil {
 		return nil, err
 	}
@@ -298,9 +401,63 @@ func (s *Service) GetRepository() *Repository {
 	return s.repo
 }
 
+func (s *Service) downloadImage(ctx context.Context, url string) ([]byte, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to download image: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 400 {
+		return nil, fmt.Errorf("image download failed with status: %d", resp.StatusCode)
+	}
+
+	return io.ReadAll(resp.Body)
+}
+
+func (s *Service) UploadFile(ctx context.Context, file *multipart.FileHeader) (*UploadResponse, error) {
+	objectKey := fmt.Sprintf("uploads/images/%s/%s", uuid.New().String(), file.Filename)
+
+	src, err := file.Open()
+	if err != nil {
+		return nil, fmt.Errorf("failed to open file: %w", err)
+	}
+	defer src.Close()
+
+	body, err := io.ReadAll(src)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read file: %w", err)
+	}
+
+	contentType := file.Header.Get("Content-Type")
+	if contentType == "" {
+		contentType = "application/octet-stream"
+	}
+
+	if err := s.storage.Put(ctx, objectKey, body, contentType); err != nil {
+		return nil, fmt.Errorf("failed to upload to storage: %w", err)
+	}
+
+	presignedURL, err := s.storage.GetPresignedURL(ctx, objectKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate presigned URL: %w", err)
+	}
+
+	return &UploadResponse{
+		ObjectKey: objectKey,
+		URL:       presignedURL,
+	}, nil
+}
+
 type TextToImageRequest struct {
-	Prompt string `json:"prompt"`
-	Model  string `json:"model"`
+	Prompt      string `json:"prompt"`
+	Model       string `json:"model"`
+	AspectRatio string `json:"aspect_ratio,omitempty"`
 }
 
 type ImageToImageRequest struct {
@@ -310,9 +467,17 @@ type ImageToImageRequest struct {
 }
 
 type ImageGenerationResult struct {
-	Outputs []struct {
-		URL string `json:"url"`
-	} `json:"outputs"`
+	Data    ImageResultData `json:"data"`
+	BaseResp BaseResp       `json:"base_resp"`
+}
+
+type ImageResultData struct {
+	ImageURLs []string `json:"image_urls"`
+}
+
+type BaseResp struct {
+	StatusCode int    `json:"status_code"`
+	StatusMsg  string `json:"status_msg"`
 }
 
 type TextToVideoRequest struct {
@@ -342,7 +507,7 @@ type SubjectReferenceVideoRequest struct {
 }
 
 type VideoTaskResult struct {
-	TaskID string `json:"taskId"`
+	TaskID string `json:"task_id"`
 	Status string `json:"status"`
 }
 

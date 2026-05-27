@@ -30,9 +30,9 @@ func (r *Repository) FindByID(id uuid.UUID) (*Generation, error) {
 	return &generation, nil
 }
 
-func (r *Repository) FindAll(filter string) ([]Generation, error) {
+func (r *Repository) FindAll(sessionID string, filter string) ([]Generation, error) {
 	var generations []Generation
-	query := r.db.Order("created_at DESC")
+	query := r.db.Where("session_id = ?", sessionID).Order("created_at DESC")
 	if filter == "image" {
 		query = query.Where("type = ?", GenerationTypeImage)
 	} else if filter == "video" {

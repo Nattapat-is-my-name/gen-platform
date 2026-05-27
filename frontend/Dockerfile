@@ -10,8 +10,9 @@ COPY tsconfig*.json ./
 COPY index.html ./
 COPY components.json ./
 COPY src ./src
-RUN npm ci && npm run build
+COPY public ./public
+RUN npm ci
 
 EXPOSE 5173
 
-CMD ["npx", "serve", "-s", "dist", "-l", "5173"]
+CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]

@@ -36,13 +36,14 @@ const (
 
 type Generation struct {
 	ID        uuid.UUID        `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
+	SessionID string           `gorm:"type:text;index" json:"sessionId"`
 	Type      GenerationType   `gorm:"type:text;not null" json:"type"`
 	Mode      GenerationMode  `gorm:"type:text;not null" json:"mode"`
-	Prompt    string          `gorm:"type:text;not null" json:"prompt"`
-	Model     string          `gorm:"type:text;not null" json:"model"`
+	Prompt    string           `gorm:"type:text;not null" json:"prompt"`
+	Model     string           `gorm:"type:text;not null" json:"model"`
 	Status    GenerationStatus `gorm:"type:text;not null" json:"status"`
-	TaskID    *string         `gorm:"type:text" json:"taskId,omitempty"`
-	FileID    *string         `gorm:"type:text" json:"fileId,omitempty"`
+	TaskID    *string          `gorm:"type:text" json:"taskId,omitempty"`
+	FileID    *string          `gorm:"type:text" json:"fileId,omitempty"`
 
 	InputObjects  json.RawMessage `gorm:"type:jsonb;default:'[]'" json:"inputObjects"`
 	OutputObjects json.RawMessage `gorm:"type:jsonb;default:'[]'" json:"outputObjects"`
@@ -51,9 +52,9 @@ type Generation struct {
 	ErrorCode    *string    `gorm:"type:text" json:"errorCode,omitempty"`
 	ErrorMessage *string    `gorm:"type:text" json:"errorMessage,omitempty"`
 
-	CreatedAt   time.Time   `gorm:"not null;default:now()" json:"createdAt"`
-	UpdatedAt   time.Time   `gorm:"not null;default:now()" json:"updatedAt"`
-	CompletedAt *time.Time  `json:"completedAt,omitempty"`
+	CreatedAt   time.Time  `gorm:"not null;default:now()" json:"createdAt"`
+	UpdatedAt   time.Time  `gorm:"not null;default:now()" json:"updatedAt"`
+	CompletedAt *time.Time `json:"completedAt,omitempty"`
 }
 
 func (Generation) TableName() string {

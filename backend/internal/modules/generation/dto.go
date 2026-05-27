@@ -17,14 +17,21 @@ const (
 )
 
 type ImageGenerateRequest struct {
+	SessionID                string     `json:"sessionId" binding:"required"`
 	Mode                     ImageMode `json:"mode" binding:"required"`
 	Prompt                   string    `json:"prompt" binding:"required"`
 	Model                    string    `json:"model" binding:"required"`
 	AspectRatio              string    `json:"aspectRatio"`
-	ReferenceImageObjectKeys []string  `json:"referenceImageObjectKeys"`
+	ReferenceImageObjectKey  string    `json:"referenceImageObjectKey"`
+}
+
+type UploadResponse struct {
+	ObjectKey string `json:"objectKey"`
+	URL       string `json:"url"`
 }
 
 type VideoGenerateRequest struct {
+	SessionID        string     `json:"sessionId" binding:"required"`
 	Mode             VideoMode `json:"mode" binding:"required"`
 	Prompt           string    `json:"prompt" binding:"required"`
 	Model            string    `json:"model" binding:"required"`
@@ -32,23 +39,24 @@ type VideoGenerateRequest struct {
 	Resolution       string    `json:"resolution"`
 	PromptOptimizer  bool      `json:"promptOptimizer"`
 	FastPretreatment bool      `json:"fastPretreatment"`
-	InputObjectKeys []string  `json:"inputObjectKeys"`
+	InputObjectKeys  []string  `json:"inputObjectKeys"`
 }
 
 type GenerationResponse struct {
-	ID           string   `json:"id"`
-	Type         string   `json:"type"`
-	Mode         string   `json:"mode"`
-	Prompt       string   `json:"prompt"`
-	Model        string   `json:"model"`
-	Status       string   `json:"status"`
-	TaskID       *string  `json:"taskId,omitempty"`
-	FileID       *string  `json:"fileId,omitempty"`
-	Outputs      []Output `json:"outputs"`
-	ErrorCode    *string  `json:"errorCode,omitempty"`
+	ID        string   `json:"id"`
+	SessionID string   `json:"sessionId"`
+	Type      string   `json:"type"`
+	Mode      string   `json:"mode"`
+	Prompt    string   `json:"prompt"`
+	Model     string   `json:"model"`
+	Status    string   `json:"status"`
+	TaskID    *string  `json:"taskId,omitempty"`
+	FileID    *string  `json:"fileId,omitempty"`
+	Outputs   []Output `json:"outputs"`
+	ErrorCode *string  `json:"errorCode,omitempty"`
 	ErrorMessage *string  `json:"errorMessage,omitempty"`
-	CreatedAt    string   `json:"createdAt"`
-	CompletedAt  *string  `json:"completedAt,omitempty"`
+	CreatedAt string   `json:"createdAt"`
+	CompletedAt *string `json:"completedAt,omitempty"`
 }
 
 type Output struct {
@@ -69,15 +77,17 @@ type VideoGenerateResponse struct {
 
 func ToGenerationResponse(g *Generation, outputs []Output) *GenerationResponse {
 	resp := &GenerationResponse{
-		ID:      g.ID.String(),
-		Type:    string(g.Type),
-		Mode:    string(g.Mode),
-		Prompt:  g.Prompt,
-		Model:   g.Model,
-		Status:  string(g.Status),
-		TaskID:  g.TaskID,
-		FileID:  g.FileID,
-		Outputs: outputs,
+		ID:        g.ID.String(),
+		SessionID: g.SessionID,
+		Type:      string(g.Type),
+		Mode:      string(g.Mode),
+		Prompt:    g.Prompt,
+		Model:     g.Model,
+		Status:    string(g.Status),
+		TaskID:    g.TaskID,
+		FileID:    g.FileID,
+		Outputs:   outputs,
+		CreatedAt: g.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
 	}
 	if g.ErrorCode != nil {
 		resp.ErrorCode = g.ErrorCode

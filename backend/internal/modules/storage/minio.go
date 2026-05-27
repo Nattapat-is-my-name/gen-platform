@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
@@ -59,12 +58,9 @@ func (s *MinIOStorage) Put(ctx context.Context, key string, body []byte, content
 }
 
 func (s *MinIOStorage) GetPresignedURL(ctx context.Context, key string) (string, error) {
-	presignedURL, err := s.client.PresignedGetObject(ctx, s.bucket, key, 24*time.Hour, nil)
-	if err != nil {
-		return "", fmt.Errorf("failed to generate presigned URL: %w", err)
-	}
-
-	return presignedURL.String(), nil
+	// For image generation: return direct public URL without signature
+	// MiniMax needs a publicly accessible URL, not localhost or presigned
+	return fmt.Sprintf("http://localhost:9000/%s/%s", s.bucket, key), nil
 }
 
 func (s *MinIOStorage) Delete(ctx context.Context, key string) error {
@@ -74,4 +70,26 @@ func (s *MinIOStorage) Delete(ctx context.Context, key string) error {
 	}
 
 	return nil
+}
+
+func (s *MinIOStorage) Get(ctx context.Context, key string) ([]byte, string, error) {
+	obj, err := s.client.GetObject(ctx, s.bucket, key, minio.GetObjectOptions{})
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to get object: %w", err)
+	}
+	defer obj.Close()
+
+	data := make([]byte, 0)
+	buf := make([]byte, 1024)
+	for {
+		n, err := obj.Read(buf)
+		if n > 0 {
+			data = append(data, buf[:n]...)
+		}
+		if err != nil {
+			break
+		}
+	}
+
+	return data, "", nil
 }

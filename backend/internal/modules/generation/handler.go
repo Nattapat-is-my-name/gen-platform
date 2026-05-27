@@ -19,6 +19,28 @@ func (h *Handler) HealthCheck(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "ok"})
 }
 
+func (h *Handler) Upload(c *gin.Context) {
+	file, err := c.FormFile("file")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "no file provided"})
+		return
+	}
+
+	// Validate file size (max 10MB)
+	if file.Size > 10*1024*1024 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "file too large (max 10MB)"})
+		return
+	}
+
+	resp, err := h.service.UploadFile(c.Request.Context(), file)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, resp)
+}
+
 func (h *Handler) GenerateImage(c *gin.Context) {
 	var req ImageGenerateRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -70,8 +92,14 @@ func (h *Handler) GetGeneration(c *gin.Context) {
 
 func (h *Handler) ListGenerations(c *gin.Context) {
 	filter := c.Query("type")
+	sessionID := c.Query("sessionId")
 
-	responses, err := h.service.ListGenerations(filter)
+	if sessionID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "sessionId is required"})
+		return
+	}
+
+	responses, err := h.service.ListGenerations(sessionID, filter)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

@@ -12,8 +12,12 @@ func NewRouter(genHandler *generation.Handler) *gin.Engine {
 
 	r.GET("/health", genHandler.HealthCheck)
 
+	// Serve uploaded files so MiniMax can access them
+	r.Static("/uploads", "/uploads")
+
 	api := r.Group("/api/v1")
 	{
+		api.POST("/upload", genHandler.Upload)
 		api.POST("/images/generate", genHandler.GenerateImage)
 		api.POST("/videos/generate", genHandler.GenerateVideo)
 		api.GET("/generations/:id", genHandler.GetGeneration)

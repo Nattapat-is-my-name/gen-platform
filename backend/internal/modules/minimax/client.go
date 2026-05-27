@@ -67,11 +67,15 @@ func (c *Client) doRequest(ctx context.Context, method, path string, body interf
 
 func (c *Client) GenerateTextToImage(ctx context.Context, req generation.TextToImageRequest) (*generation.ImageGenerationResult, error) {
 	body := map[string]interface{}{
-		"model":  req.Model,
+		"model": req.Model,
 		"prompt": req.Prompt,
 	}
 
-	respBody, err := c.doRequest(ctx, http.MethodPost, "/v1/text_to_image", body)
+	if req.AspectRatio != "" {
+		body["aspect_ratio"] = req.AspectRatio
+	}
+
+	respBody, err := c.doRequest(ctx, http.MethodPost, "/v1/image_generation", body)
 	if err != nil {
 		return nil, err
 	}
@@ -86,12 +90,17 @@ func (c *Client) GenerateTextToImage(ctx context.Context, req generation.TextToI
 
 func (c *Client) GenerateImageToImage(ctx context.Context, req generation.ImageToImageRequest) (*generation.ImageGenerationResult, error) {
 	body := map[string]interface{}{
-		"model":             req.Model,
-		"prompt":            req.Prompt,
-		"reference_image_url": req.ReferenceImageURL,
+		"model":  req.Model,
+		"prompt": req.Prompt,
 	}
 
-	respBody, err := c.doRequest(ctx, http.MethodPost, "/v1/image_to_image", body)
+	if req.ReferenceImageURL != "" {
+		body["subject_reference"] = []map[string]string{
+			{"type": "character", "image_file": req.ReferenceImageURL},
+		}
+	}
+
+	respBody, err := c.doRequest(ctx, http.MethodPost, "/v1/image_generation", body)
 	if err != nil {
 		return nil, err
 	}
@@ -187,7 +196,7 @@ func (c *Client) CreateSubjectReferenceVideoTask(ctx context.Context, req genera
 }
 
 func (c *Client) QueryVideoTask(ctx context.Context, taskID string) (*generation.VideoTaskStatus, error) {
-	respBody, err := c.doRequest(ctx, http.MethodGet, "/v1/video_generation/"+taskID, nil)
+	respBody, err := c.doRequest(ctx, http.MethodGet, "/v1/query/video_generation?task_id="+taskID, nil)
 	if err != nil {
 		return nil, err
 	}
