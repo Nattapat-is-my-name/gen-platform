@@ -1,6 +1,27 @@
+# Dependencies
 node_modules/
+
+# Environment
 .env
-*.log
-.DS_Store
+.env.local
+.env.*.local
+
+# Build outputs
 dist/
+build/
+
+# Backend
 bin/
+
+# Logs
+*.log
+
+# macOS
+.DS_Store
+
+# IDE
+.idea/
+.vscode/
+
+# Misc
+*.pem
